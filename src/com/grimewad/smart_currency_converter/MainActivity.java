@@ -20,13 +20,13 @@ import android.widget.Toast;
 
 import org.json.*;
 
-public class MainActivity extends Activity implements LocationListener {
+public class MainActivity extends Activity  {
 	
 	private Map<String, String> countriesCurrenciesMap = new HashMap<String, String>();
 	
-	private LocationManager locationManager;
-	
-	private String locationProvider;
+	private double latitude;
+	private double longitude;
+
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -39,10 +39,16 @@ public class MainActivity extends Activity implements LocationListener {
 			this.finish();
 		}
 		
-		locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-		Criteria criteria = new Criteria();
-		locationProvider = locationManager.getBestProvider(criteria, false);
-		Location location = locationManager.getLastKnownLocation(locationProvider);
+		GPSTracker tracker = new GPSTracker(this);
+	    if (tracker.canGetLocation() == false) {
+	        tracker.showSettingsAlert();
+	    } else {
+	        latitude = tracker.getLatitude();
+	        longitude = tracker.getLongitude();
+	        
+	        Toast.makeText(getApplicationContext(), "Your Location is - \nLat: " + latitude + 
+	        		"\nLong: " + longitude, Toast.LENGTH_LONG).show(); 
+	    }
 	
 	}
 
@@ -77,7 +83,7 @@ public class MainActivity extends Activity implements LocationListener {
 		JSONObject json = new JSONObject(loadJSON());
 		JSONArray jsonArray = json.getJSONArray("countries");
 		
-		for(int i=0; i <= jsonArray.length(); i++){
+		for(int i=0; i < jsonArray.length(); i++){
 			JSONObject country = jsonArray.getJSONObject(i);
 			String countryCode = country.getString("cca2");
 			String currencyCode = country.getString("currency");
@@ -103,29 +109,5 @@ public class MainActivity extends Activity implements LocationListener {
 	            return mDialog;
 	        }
 	    }
-
-	@Override
-	public void onLocationChanged(Location location) {
-		// TODO Auto-generated method stub
-		
-	}
-
-	@Override
-	public void onStatusChanged(String provider, int status, Bundle extras) {
-		// TODO Auto-generated method stub
-		
-	}
-
-	@Override
-	public void onProviderEnabled(String provider) {
-		// TODO Auto-generated method stub
-		
-	}
-
-	@Override
-	public void onProviderDisabled(String provider) {
-		// TODO Auto-generated method stub
-		
-	}
 
 }
