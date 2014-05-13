@@ -3,9 +3,13 @@ package com.grimewad.smart_currency_converter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
+import android.location.Address;
 import android.location.Criteria;
+import android.location.Geocoder;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
@@ -22,10 +26,13 @@ import org.json.*;
 
 public class MainActivity extends Activity  {
 	
-	private Map<String, String> countriesCurrenciesMap = new HashMap<String, String>();
+	private static Map<String, String> COUNTRIES_CURRENCY_MAP = new HashMap<String, String>();
 	
 	private double latitude;
 	private double longitude;
+	
+	private String currentCountryCode;
+	private String currencyCode;
 
 
 	@Override
@@ -38,18 +45,18 @@ public class MainActivity extends Activity  {
 			Toast.makeText(this, "Error loading Currency Codes", Toast.LENGTH_LONG).show();
 			this.finish();
 		}
+		obtainGPSCordinates();
+		int count = 0;
+		do{
+			currentCountryCode = getCountryCode(getApplicationContext(), latitude, longitude);
+			currencyCode = getCurrencyCode(currentCountryCode);
+			count++;
+			try {
+				Thread.sleep(50);
+			} catch (InterruptedException e) {}
+		}while(currencyCode == null && count <=100);
 		
-		GPSTracker tracker = new GPSTracker(this);
-	    if (tracker.canGetLocation() == false) {
-	        tracker.showSettingsAlert();
-	    } else {
-	        latitude = tracker.getLatitude();
-	        longitude = tracker.getLongitude();
-	        
-	        Toast.makeText(getApplicationContext(), "Your Location is - \nLat: " + latitude + 
-	        		"\nLong: " + longitude, Toast.LENGTH_LONG).show(); 
-	    }
-	
+		Toast.makeText(this, "Currency Code is " + currencyCode, Toast.LENGTH_LONG).show();
 	}
 
 	@Override
@@ -87,27 +94,41 @@ public class MainActivity extends Activity  {
 			JSONObject country = jsonArray.getJSONObject(i);
 			String countryCode = country.getString("cca2");
 			String currencyCode = country.getString("currency");
-			countriesCurrenciesMap.put(countryCode, currencyCode);
+			currencyCode.replace("[\"", "");
+			currencyCode.replace("\"]", "");
+			COUNTRIES_CURRENCY_MAP.put(countryCode, currencyCode);
 		}
 	}
 	
-	  public static class ErrorDialogFragment extends DialogFragment {
-	        // Global field to contain the error dialog
-	        private Dialog mDialog;
-	        // Default constructor. Sets the dialog field to null
-	        public ErrorDialogFragment() {
-	            super();
-	            mDialog = null;
-	        }
-	        // Set the dialog to display
-	        public void setDialog(Dialog dialog) {
-	            mDialog = dialog;
-	        }
-	        // Return a Dialog to the DialogFragment.
-	        @Override
-	        public Dialog onCreateDialog(Bundle savedInstanceState) {
-	            return mDialog;
-	        }
+	private void obtainGPSCordinates(){
+		
+		GPSTracker tracker = new GPSTracker(this);
+	    if (tracker.canGetLocation() == false) {
+	        tracker.showSettingsAlert();
+	    } else {
+	        latitude = tracker.getLatitude();
+	        longitude = tracker.getLongitude();      
 	    }
+	}
+	
+	public static String getCountryCode(Context context, double latitude, double longitude) {
+		
+	    Geocoder geocoder = new Geocoder(context, Locale.getDefault());
+	    List<Address> addresses = null;
+	    try {
+	        addresses = geocoder.getFromLocation(latitude, longitude, 1);
+	    } catch (IOException e) {
+	    	
+	    }
+	    if (addresses != null && !addresses.isEmpty()) {
+	        return addresses.get(0).getCountryCode();
+	    }
+	    return null;
+	}
+	
+	public static String getCurrencyCode(String countryCode){
+		
+		return COUNTRIES_CURRENCY_MAP.get(countryCode);
+	}
 
 }

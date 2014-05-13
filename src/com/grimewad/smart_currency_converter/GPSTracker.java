@@ -201,7 +201,7 @@ public class GPSTracker extends Service implements LocationListener{
    
    /**
     * Stop using GPS listener
-    * Calling this function will stop using GPS in your app
+    * Calling this function will stop using GPS
     * */
    public void stopUsingGPS(){
        if(locationManager != null){
