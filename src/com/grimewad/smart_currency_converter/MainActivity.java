@@ -1,33 +1,35 @@
 package com.grimewad.smart_currency_converter;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
 import android.location.Address;
-import android.location.Criteria;
 import android.location.Geocoder;
-import android.location.Location;
-import android.location.LocationListener;
-import android.location.LocationManager;
 import android.os.Bundle;
 import android.app.Activity;
-import android.app.Dialog;
-import android.app.DialogFragment;
 import android.content.Context;
-import android.support.v4.app.FragmentActivity;
 import android.view.Menu;
 import android.widget.Toast;
 
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.ClientProtocolException;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.DefaultHttpClient;
 import org.json.*;
 
 public class MainActivity extends Activity  {
 	
 	private static Map<String, String> COUNTRIES_CURRENCY_MAP = new HashMap<String, String>();
-	
+	private static String GOOGLE_MAPS_API_ADDRESS = "https://maps.googleapis.com/maps/api/geocode/json?latlng=%1$s,%2$s&sensor=true_or_false";
+
 	private double latitude;
 	private double longitude;
 	
@@ -46,17 +48,36 @@ public class MainActivity extends Activity  {
 			this.finish();
 		}
 		obtainGPSCordinates();
-		int count = 0;
-		do{
-			currentCountryCode = getCountryCode(getApplicationContext(), latitude, longitude);
-			currencyCode = getCurrencyCode(currentCountryCode);
-			count++;
-			try {
-				Thread.sleep(50);
-			} catch (InterruptedException e) {}
-		}while(currencyCode == null && count <=100);
+		currentCountryCode = getCountryCode(getApplicationContext(), latitude, longitude);
+		currencyCode = getCurrencyCode(currentCountryCode);
 		
 		Toast.makeText(this, "Currency Code is " + currencyCode, Toast.LENGTH_LONG).show();
+	}
+	
+	@Override
+	protected void onResume(){
+		super.onResume();
+		if(COUNTRIES_CURRENCY_MAP.isEmpty()){
+			try{
+				loadCountryCurrencyMap();
+			}catch(JSONException e){
+				Toast.makeText(this, "Error loading Currency Codes", Toast.LENGTH_LONG).show();
+				this.finish();
+			}
+		}
+		obtainGPSCordinates();
+		currentCountryCode = getCountryCode(getApplicationContext(), latitude, longitude);
+		currencyCode = getCurrencyCode(currentCountryCode);
+		
+		Toast.makeText(this, "New Currency Code is " + currencyCode, Toast.LENGTH_LONG).show();
+	}
+	
+	@Override
+	protected void onDestroy(){
+		super.onDestroy();
+		COUNTRIES_CURRENCY_MAP = null;
+		currentCountryCode = null;
+		currencyCode = null;
 	}
 
 	@Override
@@ -111,7 +132,7 @@ public class MainActivity extends Activity  {
 	    }
 	}
 	
-	public static String getCountryCode(Context context, double latitude, double longitude) {
+	public String getCountryCode(Context context, double latitude, double longitude) {
 		
 	    Geocoder geocoder = new Geocoder(context, Locale.getDefault());
 	    List<Address> addresses = null;
@@ -122,11 +143,58 @@ public class MainActivity extends Activity  {
 	    }
 	    if (addresses != null && !addresses.isEmpty()) {
 	        return addresses.get(0).getCountryCode();
+	    }else{
+	    	/*
+	    	 * Geocoder hasn't returned a location so falling back to Google Maps API
+	    	 * to retrieve the country code
+	    	 */
+	    	try {
+				return retrieveCountryCodeFromGoogleMapsAPI(latitude, longitude);
+			} catch (JSONException e) {
+				return null;
+			}
 	    }
-	    return null;
+
 	}
 	
-	public static String getCurrencyCode(String countryCode){
+	private String retrieveCountryCodeFromGoogleMapsAPI(double latitude, double longitude) throws JSONException{
+		
+		StringBuilder stringBuilder = new StringBuilder();
+		String httpAddress = String.format(GOOGLE_MAPS_API_ADDRESS, latitude, longitude);
+		HttpClient httpClient = new DefaultHttpClient();
+		HttpGet get = new HttpGet(httpAddress);
+		try {
+			HttpResponse response = httpClient.execute(get);
+			if(response.getStatusLine().getStatusCode() == 200){
+				HttpEntity entity = response.getEntity();
+				InputStream content = entity.getContent();
+				BufferedReader reader = new BufferedReader(new InputStreamReader(content));
+				String line;
+				while((line = reader.readLine()) != null){
+					stringBuilder.append(line);
+				}
+			}else{
+				Toast.makeText(getApplicationContext(), "Error retrieving JSON from Google Maps API", Toast.LENGTH_LONG).show();
+			}
+			
+		} catch (ClientProtocolException e) {
+
+		} catch (IOException e) {
+			
+		}
+		
+		JSONObject json = new JSONObject(stringBuilder.toString());
+		JSONArray addressComponents = json.getJSONArray("results").getJSONArray(0);
+		for(int i = 0; i < addressComponents.length(); i++){
+			if(addressComponents.getJSONObject(i).getJSONArray("types").getString(1).equals("country")){
+				return addressComponents.getJSONObject(i).getString("short_name");
+			}
+		}
+		
+		return null;
+	}
+	
+	public String getCurrencyCode(String countryCode){
 		
 		return COUNTRIES_CURRENCY_MAP.get(countryCode);
 	}
